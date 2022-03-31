@@ -10,7 +10,9 @@ from sklearn.model_selection import cross_val_score
 from sklearn.base import BaseEstimator
 from sklearn.model_selection import cross_val_predict
 from sklearn.metrics import confusion_matrix
-from sklearn.metrics import precision_score, recall_score, f1_score
+from sklearn.metrics import precision_score, recall_score, f1_score, precision_recall_curve
+from sklearn.metrics import roc_curve, roc_auc_score
+from sklearn.ensemble import RandomForestClassifier
 
 mnist = fetch_openml('mnist_784', version=1)
 X, y = mnist["data"], mnist["target"] # X: (70000,784), y: (70000,1)
@@ -29,8 +31,8 @@ if 1==1: # train a binarry classifier
     sgd_clf = SGDClassifier(random_state=42)
     sgd_clf.fit(X_train, y_train_binary)
     # to get the decision score for a sample:
-    y_score = sgd_clf.decision_function([X[0:1].to_numpy()])
-    print(y_score)
+    #y_score = sgd_clf.decision_function([X[0:1].to_numpy()])
+    #print(y_score)
 
     # cross validation
     if 1 == 0:  # to do cross validation by hand
@@ -64,8 +66,40 @@ if 1==1: # confusion matrix of clean binary predictor on training set
     print(confusion_matrix(y_train_binary, y_train_pred))
     print(precision_score(y_train_binary, y_train_pred))
     print(recall_score(y_train_binary, y_train_pred))
-    print(f1_score((y_train_binary, y_train_pred)))
+    print(f1_score(y_train_binary, y_train_pred))
 else: # confusion matrix of never_5_clssifier
     y_train_never5_pred = cross_val_predict(never_5_clf,X_train,y_train_binary,cv=3)
     print(confusion_matrix(y_train_binary, y_train_never5_pred))
 
+# precision recal curve
+y_scores = cross_val_predict(sgd_clf,X_train,y_train_binary,cv=3,method="decision_function")
+precisions, recalls, thresholds = precision_recall_curve(y_train_binary,y_scores)
+def plot_precision_recall_vs_threshold(precisions, recalls, thresholds):
+    plt.plot(thresholds, precisions[:-1], "b--", label="Precision")
+    plt.plot(thresholds, recalls[:-1], "g-", label="Recall")
+plot_precision_recall_vs_threshold(precisions,recalls,thresholds)
+plt.show()
+# to set the threshold to 90% precision and predict based on that:
+threshold_90_precision = thresholds[np.argmax(precisions >= 0.90)] # ~7816
+print(threshold_90_precision)
+# make predictions:
+y_train_pred_90 = (y_scores >= threshold_90_precision)
+print(precision_score(y_train_binary, y_train_pred_90))
+print(recall_score(y_train_binary, y_train_pred_90))
+# ROC curve, ROC AUC score
+fpr, tpr, thresholds = roc_curve(y_train_binary,y_scores)
+def plot_roc_curve(fpr, tpr, label=None):
+    plt.plot(fpr, tpr, linewidth=2, label=label)
+    plt.plot([0, 1], [0, 1], 'k--') # dashed diagonal
+plot_roc_curve(fpr, tpr)
+plt.show()
+print(roc_auc_score(y_train_binary,y_scores))
+# train and measure the ROC of randomforest classifier:
+rf_clf = RandomForestClassifier(random_state=42)
+y_probas_forest = cross_val_predict(rf_clf,X_train,y_train_binary,cv=3,method="predict_proba") #(60000,2) numpy
+y_score_forest = y_probas_forest[:,1]
+fpr_forest, tpr_forest, thresholds_forest = roc_curve(y_train_binary,y_score_forest)
+plt.plot(fpr, tpr, "b:", label="SGD")
+plot_roc_curve(fpr_forest, tpr_forest, "Random Forest")
+plt.legend(loc="lower right")
+plt.show() 
