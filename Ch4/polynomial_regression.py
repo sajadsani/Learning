@@ -1,11 +1,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import Lasso, LinearRegression
 from sklearn.linear_model import SGDRegressor
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
+from sklearn.linear_model import Ridge, Lasso, ElasticNet
 
 
 
@@ -43,4 +44,27 @@ else: # polynomial regression
 plt.show()
 
 # Regularized regression
+# ridge regression
+if 1==0: # ridge regression
+    ridge_reg = Ridge(alpha=1,solver="cholesky")
+    ridge_reg.fit(X,y)
+    print(ridge_reg.predict([[1.5]]))
+elif 1==1: # stochastic gradient desent
+    sgd_reg = SGDRegressor(penalty="l2")
+    sgd_reg.fit(X, y.ravel())
+    print(sgd_reg.predict([[1.5]]))
+# lasso regression
+if 1==0:
+    lasso_reg = Lasso(alpha=0.1)
+    lasso_reg.fit(X,y)
+    print(lasso_reg.predict([[1.5]]))
+else:
+    sgd_reg_lasso = SGDRegressor(penalty="l1")
+    sgd_reg_lasso.fit(X,y)
+    print(sgd_reg_lasso.predict([[1.5]]))
+# SelasticNet regression
+
+Elasticnet_reg = ElasticNet(alpha=0.1,l1_ratio=0.5)
+Elasticnet_reg.fit(X,y)
+print(Elasticnet_reg.predict([[1.5]]))
 
