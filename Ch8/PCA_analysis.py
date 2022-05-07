@@ -1,12 +1,18 @@
 from sklearn.datasets import fetch_openml
 import numpy as np
 from sklearn.decomposition import PCA
-from sklearn.decomposition import IncrementalPCA
+from sklearn.decomposition import IncrementalPCA, KernelPCA
+from sklearn.model_selection import GridSearchCV
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import mean_squared_error
+from sklearn.manifold import LocallyLinearEmbedding
+
 
 # Fetch data of mnist
 mnist = fetch_openml('mnist_784',version=1)
 X , y = mnist["data"],mnist["target"]
-print(X.shape())
+print(X.shape)
 if 1==0: # doing pca by hand
 # normalization
     X_centered = X - X.mean(axis=0)
@@ -39,9 +45,35 @@ elif 1==0: # incremental pca
         for X_batch in np.array_split(X, n_batches):
             inc_pca.partial_fit(X_batch)
         X_reduced = inc_pca.transform(X)
-    else: # implementing inc_pca using numpy memmap numpy data set
-        X_mm = np.memmap(X, dtype="float32", mode="readonly", shape=(m, n))
-        batch_size = m // n_batches
+    else: # implementing inc_pca using numpy memmap numpy data set , This part does not work
+        X_mm = np.memmap(X, dtype="float32", mode="readonly", shape=(X.shape[0], X.shape[1]))
+        batch_size = X.shape[0] // n_batches
         inc_pca = IncrementalPCA(n_components=154, batch_size=batch_size)
         inc_pca.fit(X_mm)
+elif 1==0: # kernel PCA, I get memory error
+    rbf_pca = KernelPCA(n_components = 2, kernel="rbf", gamma=0.04)
+    X_reduced = rbf_pca.fit_transform(X)
+elif 1==0: # grid search for kpca which is looped with a classification
+    clf = Pipeline([
+    ("kpca", KernelPCA(n_components=2)),
+    ("log_reg", LogisticRegression())
+    ])
+    param_grid = [{
+    "kpca__gamma": np.linspace(0.03, 0.05, 10),
+    "kpca__kernel": ["rbf", "sigmoid"]
+    }]
+    grid_search = GridSearchCV(clf, param_grid, cv=3)
+    grid_search.fit(X, y)
+    print(grid_search.best_params_)
+elif 1==0: # inverse the data which is projected using KPCA, memory error
+    rbf_pca = KernelPCA(n_components = 2, kernel="rbf", gamma=0.0433,
+    fit_inverse_transform=True)
+    X_reduced = rbf_pca.fit_transform(X)
+    X_preimage = rbf_pca.inverse_transform(X_reduced)
+    print(mean_squared_error(X, X_preimage))
+elif 1==1: # implementing LLE, it takes a lot of time
+    lle = LocallyLinearEmbedding(n_components=2, n_neighbors=10)
+    X_reduced = lle.fit_transform(X)
+
+
 
