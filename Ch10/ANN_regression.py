@@ -7,6 +7,9 @@ import tensorflow as tf
 from tensorflow import keras
 import pandas as pd
 import matplotlib.pyplot as plt
+import os
+from scipy.stats import reciprocal
+from sklearn.model_selection import RandomizedSearchCV
 
 housing = fetch_california_housing()
 
@@ -17,6 +20,17 @@ scaler = StandardScaler()
 X_train = scaler.fit_transform(X_train)
 X_valid = scaler.transform(X_valid)
 X_test = scaler.transform(X_test)
+
+# Building a root function for saving log in order to visualize with Tensorboard
+root_logdir = os.path.join(os.curdir, "my_logs")
+def get_run_logdir():
+    import time
+    run_id = time.strftime("run_%Y_%m_%d-%H_%M_%S")
+    return os.path.join(root_logdir, run_id)
+
+# to build the subroot
+run_logdir = get_run_logdir() # e.g., './my_logs/run_2019_01_16-11_28_43'
+
 
 #print(np.shape(X_train_full),np.shape(X_train),np.shape(X_valid),np.shape(y_train))
 
@@ -63,7 +77,7 @@ elif 1==0: # building a multiple input functional API with keras   mse = 0.67
     mse_test = model.evaluate((X_test_A,X_test_B),y_test)
     print(mse_test)
     y_pred = model.predict((X_new_A,X_new_B))
-elif 1==1:
+elif 1==0: # Bulding functional API with multiple output
     input_A = keras.layers.Input(shape=[5], name="wide_input")
     input_B = keras.layers.Input(shape=[6], name = "deep_input")
     hidden1 = keras.layers.Dense(30, activation="relu")(input_B)
@@ -91,9 +105,28 @@ elif 1==1:
         # checkpoint callback:
         checkpoint_cb = keras.callbacks.ModelCheckpoint("my_keras_model.h5",save_best_only=True)
         early_stopping_cb = keras.callbacks.EarlyStopping(patience=10,restore_best_weights=True)
-        history = model.fit([X_train_A,X_train_B],[y_train,y_train], epochs=20, validation_data=([X_valid_A,X_valid_B],[y_valid,y_valid]),callbacks=[checkpoint_cb, early_stopping_cb])
+        tensorboard_cb = keras.callbacks.TensorBoard(run_logdir)
+        history = model.fit([X_train_A,X_train_B],[y_train,y_train], epochs=20, validation_data=([X_valid_A,X_valid_B],[y_valid,y_valid]),callbacks=[checkpoint_cb, early_stopping_cb,tensorboard_cb])
         total_loss, main_loss, aux_loss = model.evaluate([X_test_A, X_test_B], [y_test, y_test])
         y_pred_main, y_pred_aux = model.predict([X_new_A, X_new_B])
+elif 1==1: # to fine tune a neural network model using randomized search of scikit learn
+    # first define a function for building a keras model
+    def build_model(n_hidden=1, n_neurons=30, learning_rate=3e-3, input_shape=[8]):
+        model = keras.models.Sequential()
+        model.add(keras.layers.InputLayer(input_shape=input_shape))
+        for layer in range(n_hidden):
+            model.add(keras.layers.Dense(n_neurons, activation="relu"))
+        model.add(keras.layers.Dense(1))
+        optimizer = keras.optimizers.SGD(lr=learning_rate)
+        model.compile(loss="mse", optimizer=optimizer)
+        return model
+    keras_reg = keras.wrappers.scikit_learn.KerasRegressor(build_model)
+    # to implement randomized search
+    param_distribs = {"n_hidden": [0, 1, 2, 3],"n_neurons": np.arange(1, 100),"learning_rate": reciprocal(3e-4, 3e-2),}
+    rnd_search_cv = RandomizedSearchCV(keras_reg, param_distribs, n_iter=10, cv=3)
+    rnd_search_cv.fit(X_train, y_train, epochs=100,validation_data=(X_valid, y_valid),callbacks=[keras.callbacks.EarlyStopping(patience=10)])
+    print(rnd_search_cv.best_params_)
+    print(rnd_search_cv.best_score_)
 
 
 
